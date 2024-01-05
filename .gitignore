@@ -8,5 +8,6 @@ tensorboard_3d
 screenshots
 *.png
 data
+data_old
 output
 
