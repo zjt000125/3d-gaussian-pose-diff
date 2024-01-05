@@ -110,6 +110,9 @@ def build_scaling_rotation(s, r):
     return L
 
 def safe_state(silent):
+    '''
+    Redirects stdout to a file and prints a timestamp in front of each message
+    '''
     old_f = sys.stdout
     class F:
         def __init__(self, silent):
@@ -127,6 +130,7 @@ def safe_state(silent):
 
     sys.stdout = F(silent)
 
+    # Redirect random, numpy and torch random seeding to 0
     random.seed(0)
     np.random.seed(0)
     torch.manual_seed(0)
