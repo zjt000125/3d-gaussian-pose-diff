@@ -1,0 +1,18 @@
+
+Attensions:
+
+line 68 in ./scene/__init__.py: shuffle the cameras, need to be removed if input ordered images: ok
+
+line 94 in ./train.py: pop a camera object randomly, need to be removed if input ordered images: ok
+
+need to modify the densify_from_iter parameter, corresponding to the camera optimization interval
+
+operations:
+
+The online checking code is commented
+
+line 47 in ./scene/__init__.py: comment the shuffle operation for cameras
+
+line .. in ./train.py: modify the densification interval to the camera optimization interval
+
+modify the parameter self.densify_from_iter to 50

@@ -12,18 +12,24 @@
 import os
 import random
 import json
+import torch
 from utils.system_utils import searchForMaxIteration
 from scene.dataset_readers import sceneLoadTypeCallbacks
 from scene.gaussian_model import GaussianModel
-from arguments import ModelParams
+from arguments import ModelParams, OptimizationCamerasParams
 from utils.camera_utils import cameraList_from_camInfos, camera_to_JSON
+
+from scene.camera_model import CameraModel
 
 class Scene:
 
     gaussians : GaussianModel
-
-    def __init__(self, args : ModelParams, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1.0]):
-        """b
+    
+    '''
+    scene = Scene(lp.extract(args), GaussianModel(dataset.sh_degree))
+    '''
+    def __init__(self, args : ModelParams, opt_c : OptimizationCamerasParams, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1.0]):
+        """
         :param path: Path to colmap scene main folder.
         """
         self.model_path = args.model_path
@@ -64,18 +70,35 @@ class Scene:
                 json_cams.append(camera_to_JSON(id, cam))
             with open(os.path.join(self.model_path, "cameras.json"), 'w') as file:
                 json.dump(json_cams, file)
-
-        if shuffle:
-            random.shuffle(scene_info.train_cameras)  # Multi-res consistent random shuffling
-            random.shuffle(scene_info.test_cameras)  # Multi-res consistent random shuffling
+        
+        # # shuffle cameras
+        # if shuffle:
+        #     random.shuffle(scene_info.train_cameras)  # Multi-res consistent random shuffling
+        #     random.shuffle(scene_info.test_cameras)  # Multi-res consistent random shuffling
 
         self.cameras_extent = scene_info.nerf_normalization["radius"]
-
+        
+        # load cameras in different resolutions
         for resolution_scale in resolution_scales:
             print("Loading Training Cameras")
-            self.train_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.train_cameras, resolution_scale, args)
-            print("Loading Test Cameras")
-            self.test_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.test_cameras, resolution_scale, args)
+            # modify to initilize CameraModel objects
+            self.train_cameras[resolution_scale] = CameraModel(opt_c, args.resolution, scene_info.train_cameras, trans=torch.tensor([0.0, 0.0, 0.0]), resolution_scale=resolution_scale)   # scene_info.train_cameras is a list of shuffled CameraInfo objects
+            # print("Loading Test Cameras")
+            # self.test_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.test_cameras, resolution_scale, args)
+
+            '''
+            class CameraInfo(NamedTuple):
+            uid: int
+            R: np.array # shape (3, 3)
+            T: np.array # shape (3,)
+            FovY: np.array
+            FovX: np.array
+            image: np.array
+            image_path: str
+            image_name: str
+            width: int
+            height: int
+            '''
 
         if self.loaded_iter:
             self.gaussians.load_ply(os.path.join(self.model_path,
@@ -90,6 +113,7 @@ class Scene:
         self.gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))
 
     def getTrainCameras(self, scale=1.0):
+        # return a list of Camera objects in a specific resolution
         return self.train_cameras[scale]
 
     def getTestCameras(self, scale=1.0):

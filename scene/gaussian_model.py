@@ -57,7 +57,8 @@ class GaussianModel:
         self.percent_dense = 0
         self.spatial_lr_scale = 0
         self.setup_functions()
-
+    
+    # extract the checkpoint
     def capture(self):
         return (
             self.active_sh_degree,
@@ -74,6 +75,7 @@ class GaussianModel:
             self.spatial_lr_scale,
         )
     
+    # load the checkpoint
     def restore(self, model_args, training_args):
         (self.active_sh_degree, 
         self._xyz, 
@@ -145,7 +147,8 @@ class GaussianModel:
         self._rotation = nn.Parameter(rots.requires_grad_(True))
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
-
+    
+    # initialize the learning rate of different parameters, and pass the parameters to optimizer
     def training_setup(self, training_args):
         self.percent_dense = training_args.percent_dense
         self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
@@ -254,7 +257,11 @@ class GaussianModel:
         self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True))
 
         self.active_sh_degree = self.max_sh_degree
-
+    
+    '''
+    This method replaces a tensor in a specified parameter group of the optimizer with a new tensor, 
+    and updates the optimizer's state to reflect this change.
+    '''
     def replace_tensor_to_optimizer(self, tensor, name):
         optimizable_tensors = {}
         for group in self.optimizer.param_groups:
@@ -269,7 +276,11 @@ class GaussianModel:
 
                 optimizable_tensors[group["name"]] = group["params"][0]
         return optimizable_tensors
-
+    
+    '''
+    This method prunes the parameters of the optimizer based on a given mask, 
+    and updates the optimizer's state to reflect this change
+    '''
     def _prune_optimizer(self, mask):
         optimizable_tensors = {}
         for group in self.optimizer.param_groups:
@@ -287,7 +298,12 @@ class GaussianModel:
                 group["params"][0] = nn.Parameter(group["params"][0][mask].requires_grad_(True))
                 optimizable_tensors[group["name"]] = group["params"][0]
         return optimizable_tensors
-
+    
+    '''
+    this method prunes certain points from the model based on a given mask, 
+    updates the optimizer's parameters and state to reflect this change, 
+    and also updates several instance variables that store properties of the points.
+    '''
     def prune_points(self, mask):
         valid_points_mask = ~mask
         optimizable_tensors = self._prune_optimizer(valid_points_mask)

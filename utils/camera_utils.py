@@ -11,11 +11,27 @@
 
 from scene.cameras import Camera
 import numpy as np
+
 from utils.general_utils import PILtoTorch
 from utils.graphics_utils import fov2focal
 
 WARNED = False
+'''
+cam_info is the CameraInfo object defined in dataset_readers.py
 
+class CameraInfo(NamedTuple):
+    uid: int
+    R: np.array
+    T: np.array
+    FovY: np.array
+    FovX: np.array
+    image: np.array
+    image_path: str
+    image_name: str
+    width: int
+    height: int
+
+'''
 def loadCam(args, id, cam_info, resolution_scale):
     orig_w, orig_h = cam_info.image.size
 
@@ -42,7 +58,8 @@ def loadCam(args, id, cam_info, resolution_scale):
 
     gt_image = resized_image_rgb[:3, ...]
     loaded_mask = None
-
+    
+    # For 4 channel images, the 4th channel is the alpha mask, loaded as loaded_mask
     if resized_image_rgb.shape[1] == 4:
         loaded_mask = resized_image_rgb[3:4, ...]
 
@@ -51,6 +68,8 @@ def loadCam(args, id, cam_info, resolution_scale):
                   image=gt_image, gt_alpha_mask=loaded_mask,
                   image_name=cam_info.image_name, uid=id, data_device=args.data_device)
 
+# cam_infos is a list of sorted CameraInfo objects
+# return a list of Camera objects
 def cameraList_from_camInfos(cam_infos, resolution_scale, args):
     camera_list = []
 

@@ -26,8 +26,8 @@ from tqdm import tqdm
 
 class CameraInfo(NamedTuple):
     uid: int
-    R: np.array
-    T: np.array
+    R: np.array # shape (3, 3)
+    T: np.array # shape (3,)
     FovY: np.array
     FovX: np.array
     image: np.array
@@ -74,6 +74,16 @@ def fetchPly(path):
     normals = np.vstack([vertices['nx'], vertices['ny'], vertices['nz']]).T
     return BasicPointCloud(points=positions, colors=colors, normals=normals)
 
+def fetchPly_from_ouput(path):
+    plydata = PlyData.read(path)
+    vertices = plydata['vertex']
+    # print(vertices[:4])
+    positions = np.vstack([vertices['x'], vertices['y'], vertices['z']]).T
+    # colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']]).T / 255.0
+    shs = np.random.random((vertices['x'].shape[0], 3)) / 255.0
+    normals = np.vstack([vertices['nx'], vertices['ny'], vertices['nz']]).T
+    return BasicPointCloud(points=positions, colors=SH2RGB(shs), normals=normals)
+
 def storePly(path, xyz, rgb):
     # Define the dtype for the structured array
     dtype = [('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
@@ -105,7 +115,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
         width = intr.width
 
         uid = intr.id
-        R = np.transpose(qvec2rotmat(extr.qvec))
+        R = np.transpose(qvec2rotmat(extr.qvec))  # R is stored transposed due to 'glm' in CUDA code
         T = np.array(extr.tvec)
 
         if intr.model=="SIMPLE_PINHOLE":
@@ -143,6 +153,8 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
         cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
 
     reading_dir = "images" if images == None else images
+
+    # get a list of CameraInfo objects
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir))
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
 
@@ -171,7 +183,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
         pcd = None
 
     scene_info = SceneInfo(point_cloud=pcd,
-                           train_cameras=train_cam_infos,
+                           train_cameras=train_cam_infos, # a list of sorted CameraInfo objects
                            test_cameras=test_cam_infos,
                            nerf_normalization=nerf_normalization,
                            ply_path=ply_path)
@@ -209,15 +221,10 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
             norm_data = im_data / 255.0
             arr = norm_data[:,:,:3] * norm_data[:, :, 3:4] + bg * (1 - norm_data[:, :, 3:4])
             image = Image.fromarray(np.array(arr*255.0, dtype=np.byte), "RGB")
-            
-            # print(image.size[0], image.size[1])
+
             fovy = focal2fov(fov2focal(fovx, image.size[0]), image.size[1])
-            # print(fov2focal(fovx, image.size[0]))
-            # print(fov2focal(fovy, image.size[1]))
             FovY = fovy 
             FovX = fovx
-
-            # print(FovX, FovY)
 
             cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
                             image_path=image_path, image_name=image_name, width=image.size[0], height=image.size[1]))
@@ -275,20 +282,20 @@ def readCamerasFromTransforms_droid(path, transformsfile, white_background, exte
     return cam_infos
 
 def readNerfSyntheticInfo(path, white_background, eval, extension=".png"):
-    
     print("Reading Training Transforms")
-    # train_cam_infos = readCamerasFromTransforms(path, "transforms_train.json", white_background, extension)
-    train_cam_infos = readCamerasFromTransforms_droid(path, "transforms_train.json", white_background, extension)
+    train_cam_infos = readCamerasFromTransforms(path, "transforms_train.json", white_background, extension)
     # print("Reading Test Transforms")
     # test_cam_infos = readCamerasFromTransforms(path, "transforms_test.json", white_background, extension)
-    test_cam_infos = []
+
+    test_cam_infos= []
+    
     # if not eval:
     #     train_cam_infos.extend(test_cam_infos)
     #     test_cam_infos = []
 
     nerf_normalization = getNerfppNorm(train_cam_infos)
 
-    ply_path = os.path.join(path, "points3d.ply")
+    ply_path = os.path.join(path, "points3D.ply")
     if not os.path.exists(ply_path):
         # Since this data set has no colmap data, we start with random points
         num_pts = 100_000
@@ -296,19 +303,14 @@ def readNerfSyntheticInfo(path, white_background, eval, extension=".png"):
         
         # We create random points inside the bounds of the synthetic Blender scenes
         xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
-        # xyz = np.random.random((num_pts, 3)) * 6
-        # xyz[:, 0] -= 4
-        # xyz[:, 1] -= 4
-        # xyz[:, 2] += 3
         shs = np.random.random((num_pts, 3)) / 255.0
         pcd = BasicPointCloud(points=xyz, colors=SH2RGB(shs), normals=np.zeros((num_pts, 3)))
-        print('Initilize the point cloud!')
 
         storePly(ply_path, xyz, SH2RGB(shs) * 255)
     try:
         pcd = fetchPly(ply_path)
     except:
-        pcd = None
+        pcd = fetchPly_from_ouput(ply_path)
 
     scene_info = SceneInfo(point_cloud=pcd,
                            train_cameras=train_cam_infos,
@@ -353,8 +355,9 @@ def readCustomerSceneInfo(path, eval=False):
 
     test_cam_infos = []
     
-    nerf_normalization = getNerfppNorm(train_cam_infos)
-
+    # return {"translate": translate=-center, "radius": radius=diagonal * 1.1}
+    nerf_normalization = getNerfppNorm(train_cam_infos)    
+    
     ply_path = os.path.join(path, "points3D.ply")
     if not os.path.exists(ply_path):
         # Since this data set has no colmap data, we start with random points

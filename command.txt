@@ -1,0 +1,24 @@
+conda activate gaussian_splatting
+
+# training
+python train.py -s ./data/cup/droid_no_ba/ -m ./output/cup/droid_no_ba --checkpoint_iterations 5000 10000 20000 30000 --save_iterations 5000 10000 20000 30000
+
+python train.py -s ./data/lego/ -m ./output/lego/lego_2_gt --checkpoint_iterations 295 --save_iterations 295
+
+# visualize remotely
+./SIBR_viewers/install/bin/SIBR_remoteGaussian_app
+
+# visulize locally
+./SIBR_viewers/install/bin/SIBR_gaussianViewer_app -m ./output/cup/droid_no_ba --iteration 10000
+
+./SIBR_viewers/install/bin/SIBR_gaussianViewer_app -m ./output/lego/lego_2_gt --iteration 295
+
+pip install /home/jiantong/project/python/gaussian-splatting_pose_diff_debug/submodules/diff-gaussian-rasterization
+
+cuda-gdb
+
+break /home/jiantong/project/python/gaussian-splatting_pose_diff_debug/submodules/diff-gaussian-rasterization/cuda_rasterizer/forward.cu:197
+
+file /home/jiantong/local/miniconda3/envs/gaussian_splatting_debug/bin/python3.7
+
+exec(open("train.py").read())

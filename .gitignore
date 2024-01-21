@@ -10,4 +10,9 @@ screenshots
 data
 data_old
 output
+submodules/simple-knn
 
+diff_gaussian_rasterization_t
+diff_gaussian_rasterization.egg-info
+submodules/diff-gaussian-rasterization
+submodules/simple-knn

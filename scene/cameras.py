@@ -14,6 +14,22 @@ from torch import nn
 import numpy as np
 from utils.graphics_utils import getWorld2View2, getProjectionMatrix
 
+'''
+class CameraInfo(NamedTuple):
+    uid: int
+    R: np.array
+    T: np.array
+    FovY: np.array
+    FovX: np.array
+    image: np.array
+    image_path: str
+    image_name: str
+    width: int
+    height: int
+
+R is stored transposed due to 'glm' in CUDA code
+'''
+
 class Camera(nn.Module):
     def __init__(self, colmap_id, R, T, FoVx, FoVy, image, gt_alpha_mask,
                  image_name, uid,
@@ -22,11 +38,14 @@ class Camera(nn.Module):
         super(Camera, self).__init__()
 
         self.uid = uid
-        self.colmap_id = colmap_id
-        self.R = R
-        self.T = T
-        self.FoVx = FoVx
-        self.FoVy = FoVy
+        self.colmap_id = colmap_id # uid in CameraInfo
+
+        self.R = R    # numpy.ndarray
+        self.T = T    # numpy.ndarray
+
+        self.FoVx = FoVx    # numpy.ndarray
+        self.FoVy = FoVy    # numpy.ndarray
+
         self.image_name = image_name
 
         try:
@@ -68,4 +87,3 @@ class MiniCam:
         self.full_proj_transform = full_proj_transform
         view_inv = torch.inverse(self.world_view_transform)
         self.camera_center = view_inv[3][:3]
-

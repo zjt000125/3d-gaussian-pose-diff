@@ -18,8 +18,12 @@ class GroupParams:
 
 class ParamGroup:
     def __init__(self, parser: ArgumentParser, name : str, fill_none = False):
+        '''
+        This method creates a new group of command-line arguments and adds it to the parser. The name parameter is a string that specifies the name of the group.
+        '''
         group = parser.add_argument_group(name)
         for key, value in vars(self).items():
+            # print([key, value])
             shorthand = False
             if key.startswith("_"):
                 shorthand = True
@@ -38,21 +42,24 @@ class ParamGroup:
                     group.add_argument("--" + key, default=value, type=t)
 
     def extract(self, args):
+        # extract the parameters related to this group from the args object
         group = GroupParams()
         for arg in vars(args).items():
+            # print(arg)
             if arg[0] in vars(self) or ("_" + arg[0]) in vars(self):
+                # print([arg[0], arg[1]])
                 setattr(group, arg[0], arg[1])
         return group
 
 class ModelParams(ParamGroup): 
     def __init__(self, parser, sentinel=False):
         self.sh_degree = 3
-        self._source_path = ""
-        self._model_path = ""
+        self._source_path = "/home/jiantong/project/python/gaussian-splatting_pose_diff_debug/data/lego"
+        self._model_path = "/home/jiantong/project/python/gaussian-splatting_pose_diff_debug/output/lego/lego_2_gt"
         self._images = "images"
         self._resolution = -1
         self._white_background = False
-        self.data_device = "cuda"
+        self.data_device = "cuda:0"
         self.eval = False
         super().__init__(parser, "Loading Parameters", sentinel)
 
@@ -83,12 +90,26 @@ class OptimizationParams(ParamGroup):
         self.lambda_dssim = 0.2
         self.densification_interval = 100
         self.opacity_reset_interval = 3000
-        self.densify_from_iter = 500
+        self.densify_from_iter = 50
         self.densify_until_iter = 15_000
         self.densify_grad_threshold = 0.0002
         self.random_background = False
         super().__init__(parser, "Optimization Parameters")
 
+class OptimizationCamerasParams(ParamGroup):
+    def __init__(self, parser):
+        self.iterations_one_view = 300
+        self.iterations_pose = 20
+        self.camera_device = 'cuda:0'
+        self.t_lr_init = 1e-1
+        self.r_lr_init = 1e-2
+
+        super().__init__(parser, "Optimization Camera Parameters")
+
+
+'''
+ parse command-line arguments and merge them with arguments from a configuration file.
+'''
 def get_combined_args(parser : ArgumentParser):
     cmdlne_string = sys.argv[1:]
     cfgfile_string = "Namespace()"
